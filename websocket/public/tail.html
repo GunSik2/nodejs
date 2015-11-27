@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>WebSocket Echo Client</title>
+  <meta charset="UTF-8" />
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+  <script src="/script/long.js"></script>
+  <script src="/script/bytebuffer.js"></script>
+  <script src="/script/protobuf.js"></script>
+  <script>
+    //$.ajaxSetup({async: false});
+
+    $(document).ready(function() {
+       bearer="bearer eyJhbGciOiJSUzI1NiJ9.eyJqdGkiOiJhNDNjNzNhMC03YTEzLTRhOTktYTQwNS01M2EzZTliOGMwMjciLCJzdWIiOiI5Y2FlNTg3ZC1jNDA2LTQxODctOWQ2ZS0zMjM4NDRmMTNhZTEiLCJzY29wZSI6WyJzY2ltLnJlYWQiLCJzY2ltLnVzZXJpZHMiLCJjbG91ZF9jb250cm9sbGVyLmFkbWluIiwic2NpbS53cml0ZSIsImNsb3VkX2NvbnRyb2xsZXIud3JpdGUiLCJwYXNzd29yZC53cml0ZSIsIm9wZW5pZCIsImNsb3VkX2NvbnRyb2xsZXIucmVhZCJdLCJjbGllbnRfaWQiOiJjZiIsImNpZCI6ImNmIiwiYXpwIjoiY2YiLCJncmFudF90eXBlIjoicGFzc3dvcmQiLCJ1c2VyX2lkIjoiOWNhZTU4N2QtYzQwNi00MTg3LTlkNmUtMzIzODQ0ZjEzYWUxIiwidXNlcl9uYW1lIjoiZGVtbyIsImVtYWlsIjoiZGVtbyIsInJldl9zaWciOiIyYWQ3MjY4MSIsImlhdCI6MTQ0ODU4NTkwNiwiZXhwIjoxNDQ4NjI5MTA2LCJpc3MiOiJodHRwczovL3VhYS5vcy5wYWFzeHBlcnQuY29tL29hdXRoL3Rva2VuIiwiemlkIjoidWFhIiwiYXVkIjpbImNmIiwic2NpbSIsImNsb3VkX2NvbnRyb2xsZXIiLCJwYXNzd29yZCIsIm9wZW5pZCJdfQ.lZi-LWATY5u_MmPxaeoPx4FruhWAwH4ssB65stCeOCQzQEONdsaqjw5p9hegAvGQwOl5V0Fyb34jpKOB6beM5vA09KBQ_MijY-C6yzixfzu7E6bpX_z59BpwtP0c9iZNo-Wl9EFb5qMUPZi7Do94uwexqcFlFZIV3u3dxv83uLfQAgboGvZokeEM5uyK95IkAs8UKqO0n_ocINrGpy8rv3bxO4DG7cPzyXs4V6VaIdiWhX2Wn-JC97oR8RGXZBT99GOku56-iUkW1ApJRJ7YwVl1yhd4v9R8rVs1yjfMEDGKMJReONg1ioXHRlgEE4UUxOwotu6C_nY-SvlVbwZMCw"
+
+
+       $.ajax({
+	  type: 'POST',
+	  url: 'https://loggregator.domain.com/set-cookie',
+	  data: { CookieName:"authorization", CookieValue:bearer },
+	  xhrFields: {
+		withCredentials: true
+	  },
+	  headers: {
+		//Access-Control-Allow-Headers: 
+	  },
+	  success: function() {
+                console.log("success: " + status);
+	  }, 
+ 	  error: function() {
+                console.log("error: " + status);
+	  }
+       })
+    });
+
+      var s =  
+"package logmessage;" +
+"message LogMessage {" +
+"        enum MessageType {" +
+"                    OUT = 1;" +
+"                    ERR = 2;" +
+"                }" +
+"        required bytes message = 1;" +
+"        required MessageType message_type = 2;" +
+"        required sint64 timestamp = 3;" +
+"        required string app_id = 4;" +
+"        optional string source_id = 6;" +
+"        repeated string drain_urls = 7;" +
+"        optional string source_name = 8;" +
+"}" +
+"message LogEnvelope {" +
+"        required string routing_key = 1;" +
+"        required bytes signature = 2;" +
+"        required LogMessage log_message = 3;" +
+"}"
+     
+
+    // Initialize everything when the window finishes loading
+    window.addEventListener("load", function(event) {
+      var status = document.getElementById("status");
+      var url = document.getElementById("url");
+      var open = document.getElementById("open");
+      var close = document.getElementById("close");
+      var send = document.getElementById("send");
+      var text = document.getElementById("text");
+      var message = document.getElementById("message");
+      var socket;
+
+
+      status.textContent = "Not Connected";
+      url.value = "wss://loggregator.domain.com/tail/?app=ed930509-ada4-4539-860b-5e7d38bae13d"
+      //url.value = "wss://init.domain.com:8082";
+      close.disabled = true;
+      send.disabled = true;
+
+      // Create a new connection when the Connect button is clicked
+      open.addEventListener("click", function(event) {
+        open.disabled = true;
+        //#socket = new WebSocket(url.value, "echo-protocol");
+        socket = new WebSocket(url.value); 
+
+        var t = dcodeIO.ProtoBuf.loadProto(s)
+        var u = t.build("logmessage").LogMessage;
+
+
+        socket.addEventListener("open", function(event) {
+          close.disabled = false;
+          send.disabled = false;
+          status.textContent = "Connected";
+        });
+
+
+        // Display messages received from the server
+        socket.addEventListener("message", function(t) {
+
+            var reader = new FileReader()
+	    reader.onload = function(t) {
+                e = t.target.result;
+                n = u.decode(e)
+                r = n.message.readUTF8StringBytes(n.message.remaining())
+                o = timestamp(n.timestamp.toNumber())
+
+                msg = logmessage({
+                     body: r,
+                     messageType: 1 == n.message_type ? "OUT" : "ERR",
+                     timestamp: o,
+                     appId: n.app_id,
+                     sourceId: n.source_id,
+                     sourceName: n.source_name,
+                     drainUrls: n.drain_urls
+            	})
+  	        message.textContent = message.textContent + msg + "<br/>"
+	        console.log("msg=" + msg.body)
+	    }
+
+            reader.readAsArrayBuffer(t.data);
+        });
+
+        // Display any errors that occur
+        socket.addEventListener("error", function(event) {
+          message.textContent = "Error: " + event;
+        });
+
+        socket.addEventListener("close", function(event) {
+          open.disabled = false;
+          status.textContent = "Not Connected";
+        });
+      });
+
+      // Close the connection when the Disconnect button is clicked
+      close.addEventListener("click", function(event) {
+        close.disabled = true;
+        send.disabled = true;
+        message.textContent = "";
+        socket.close();
+      });
+
+      // Send text to the server when the Send button is clicked
+      send.addEventListener("click", function(event) {
+        socket.send(text.value);
+        text.value = "";
+      });
+    });
+
+
+    function logmessage(t) {
+                return {
+                    body: t.body || null,
+                    messageType: t.messageType || "OUT",
+                    timestamp: t.timestamp || new Date,
+                    appId: t.appId || null,
+                    sourceId: t.sourceId || null,
+                    sourceName: t.sourceName || null,
+                    drainUrls: t.drainUrls || []
+                }
+    }
+
+    function timestamp(t) {
+                return isNaN(t) ? "Invalid Timestamp" : (9999999999 >= t && (t *= 1e3), t >= 1e16 && (t *= 1e-6), new Date(t))
+    }
+
+  </script>
+</head>
+<body>
+  Status: <span id="status"></span><br />
+  URL: <input id="url" /><br />
+  <input id="open" type="button" value="Connect" />&nbsp;
+  <input id="close" type="button" value="Disconnect" /><br />
+  <input id="send" type="button" value="Send" />&nbsp;
+  <input id="text" /><br />
+  <span id="message"></span>
+</body>
+</html>
